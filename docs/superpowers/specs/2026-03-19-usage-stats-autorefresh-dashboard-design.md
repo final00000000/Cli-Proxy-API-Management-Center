@@ -192,9 +192,10 @@ These events are sufficient for the approved gating behavior and avoid unnecessa
 
 1. Failed scheduled refreshes should surface through the page's normal data-loading error behavior.
 2. Browser inactivity should not be treated as an error.
-3. Invalid custom interval input should be clamped or rejected with inline guidance instead of silent breakage.
+3. Invalid custom interval input should always clamp to the nearest valid boundary instead of being rejected silently.
 4. Values below 15 seconds should clamp to 15 seconds, and values above 3600 seconds should clamp to 3600 seconds.
-5. Auto-refresh must never trap the page in a permanent loading state after a failed request.
+5. When clamping occurs, the UI should show inline guidance explaining that the interval must stay between 15 and 3600 seconds and that the value was adjusted automatically.
+6. Auto-refresh must never trap the page in a permanent loading state after a failed request.
 
 ## Accessibility And Usability
 
@@ -217,8 +218,8 @@ These events are sufficient for the approved gating behavior and avoid unnecessa
 8. Interval changes take effect without page reload.
 9. Persisted settings restore correctly after reload.
 10. Leaving the usage page stops scheduled refresh and disposes the active timer/listener set.
-11. Entering a custom value below 15 seconds clamps or rejects the value with inline guidance and schedules with the valid result only.
-12. Entering a custom value above 3600 seconds clamps or rejects the value with inline guidance and schedules with the valid result only.
+11. Entering a custom value below 15 seconds clamps the value to 15, shows inline guidance, and schedules with 15 seconds only.
+12. Entering a custom value above 3600 seconds clamps the value to 3600, shows inline guidance, and schedules with 3600 seconds only.
 
 ### UI Checks
 
