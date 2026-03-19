@@ -54,7 +54,7 @@ describe('useUsageAutoRefresh', () => {
       return;
     }
 
-    delete (document as Document & { visibilityState?: DocumentVisibilityState }).visibilityState;
+    delete (document as { visibilityState?: DocumentVisibilityState }).visibilityState;
   });
 
   const setDocumentVisibility = (visible: boolean) => {
