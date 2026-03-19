@@ -14,6 +14,8 @@ import {
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { Select } from '@/components/ui/Select';
+import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
+import { Input } from '@/components/ui/Input';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useHeaderRefresh } from '@/hooks/useHeaderRefresh';
 import { useThemeStore, useConfigStore } from '@/stores';
@@ -29,10 +31,16 @@ import {
   TokenBreakdownChart,
   CostTrendChart,
   ServiceHealthCard,
+  useUsageAutoRefresh,
   useUsageData,
   useSparklines,
   useChartData
 } from '@/components/usage';
+import {
+  MAX_USAGE_AUTO_REFRESH_SECONDS,
+  MIN_USAGE_AUTO_REFRESH_SECONDS,
+  USAGE_AUTO_REFRESH_PRESET_SECONDS
+} from '@/components/usage/hooks/usageAutoRefresh';
 import {
   getModelNamesFromUsage,
   getApiStats,
@@ -59,6 +67,7 @@ const TIME_RANGE_STORAGE_KEY = 'cli-proxy-usage-time-range-v1';
 const DEFAULT_CHART_LINES = ['all'];
 const DEFAULT_TIME_RANGE: UsageTimeRange = '24h';
 const MAX_CHART_LINES = 9;
+const AUTO_REFRESH_CUSTOM_INTERVAL_OPTION = 'custom';
 const TIME_RANGE_OPTIONS: ReadonlyArray<{ value: UsageTimeRange; labelKey: string }> = [
   { value: 'all', labelKey: 'usage_stats.range_all' },
   { value: '7h', labelKey: 'usage_stats.range_7h' },
@@ -109,11 +118,13 @@ const loadTimeRange = (): UsageTimeRange => {
       return DEFAULT_TIME_RANGE;
     }
     const raw = localStorage.getItem(TIME_RANGE_STORAGE_KEY);
-    return isUsageTimeRange(raw) ? raw : DEFAULT_TIME_RANGE;
+  return isUsageTimeRange(raw) ? raw : DEFAULT_TIME_RANGE;
   } catch {
     return DEFAULT_TIME_RANGE;
   }
 };
+
+type AutoRefreshStatusTone = 'running' | 'paused' | 'refreshing';
 
 export function UsagePage() {
   const { t } = useTranslation();
@@ -139,7 +150,25 @@ export function UsagePage() {
     importing
   } = useUsageData();
 
-  useHeaderRefresh(loadUsage);
+  const {
+    settings: autoRefreshSettings,
+    runRefresh,
+    setEnabled: setAutoRefreshEnabled,
+    setMode: setAutoRefreshMode,
+    setPresetIntervalSeconds,
+    customIntervalInput,
+    setCustomIntervalInput,
+    applyCustomInterval,
+    customIntervalHint,
+    isRefreshing,
+    pauseReason
+  } = useUsageAutoRefresh(loadUsage, loading);
+
+  const handleManualRefresh = useCallback(async () => {
+    await runRefresh('manual');
+  }, [runRefresh]);
+
+  useHeaderRefresh(handleManualRefresh);
 
   // Chart lines state
   const [chartLines, setChartLines] = useState<string[]>(loadChartLines);
@@ -153,6 +182,88 @@ export function UsagePage() {
       })),
     [t]
   );
+  const autoRefreshIntervalOptions = useMemo(
+    () => [
+      ...USAGE_AUTO_REFRESH_PRESET_SECONDS.map((seconds) => ({
+        value: String(seconds),
+        label: t(`usage_stats.auto_refresh_interval_${seconds}`)
+      })),
+      {
+        value: AUTO_REFRESH_CUSTOM_INTERVAL_OPTION,
+        label: t('usage_stats.auto_refresh_interval_custom')
+      }
+    ],
+    [t]
+  );
+  const autoRefreshIntervalSelectValue =
+    autoRefreshSettings.mode === 'custom'
+      ? AUTO_REFRESH_CUSTOM_INTERVAL_OPTION
+      : String(autoRefreshSettings.intervalSeconds);
+  const autoRefreshStatus = useMemo((): { label: string; tone: AutoRefreshStatusTone } => {
+    if (isRefreshing) {
+      return {
+        label: t('usage_stats.auto_refresh_status_refreshing'),
+        tone: 'refreshing'
+      };
+    }
+
+    if (pauseReason === 'hidden') {
+      return {
+        label: t('usage_stats.auto_refresh_status_hidden'),
+        tone: 'paused'
+      };
+    }
+
+    if (pauseReason === 'unfocused') {
+      return {
+        label: t('usage_stats.auto_refresh_status_unfocused'),
+        tone: 'paused'
+      };
+    }
+
+    if (pauseReason === 'disabled') {
+      return {
+        label: t('usage_stats.auto_refresh_status_disabled'),
+        tone: 'paused'
+      };
+    }
+
+    return {
+      label: t('usage_stats.auto_refresh_status_running'),
+      tone: 'running'
+    };
+  }, [isRefreshing, pauseReason, t]);
+  const autoRefreshCustomHint = useMemo(() => {
+    if (!customIntervalHint || autoRefreshSettings.mode !== 'custom') {
+      return '';
+    }
+
+    if (
+      autoRefreshSettings.intervalSeconds === MIN_USAGE_AUTO_REFRESH_SECONDS ||
+      autoRefreshSettings.intervalSeconds === MAX_USAGE_AUTO_REFRESH_SECONDS
+    ) {
+      return t('usage_stats.auto_refresh_custom_hint_clamped', {
+        value: autoRefreshSettings.intervalSeconds,
+        min: MIN_USAGE_AUTO_REFRESH_SECONDS,
+        max: MAX_USAGE_AUTO_REFRESH_SECONDS
+      });
+    }
+
+    return t('usage_stats.auto_refresh_custom_hint_adjusted', {
+      value: autoRefreshSettings.intervalSeconds,
+      min: MIN_USAGE_AUTO_REFRESH_SECONDS,
+      max: MAX_USAGE_AUTO_REFRESH_SECONDS
+    });
+  }, [autoRefreshSettings.intervalSeconds, autoRefreshSettings.mode, customIntervalHint, t]);
+  const lastRefreshedText = useMemo(() => {
+    if (!lastRefreshedAt) {
+      return t('usage_stats.auto_refresh_last_refreshed_never');
+    }
+
+    return t('usage_stats.auto_refresh_last_refreshed_at', {
+      time: lastRefreshedAt.toLocaleTimeString()
+    });
+  }, [lastRefreshedAt, t]);
 
   const filteredUsage = useMemo(
     () => (usage ? filterUsageByTimeRange(usage, timeRange) : null),
@@ -234,57 +345,122 @@ export function UsagePage() {
       )}
 
       <div className={styles.header}>
-        <h1 className={styles.pageTitle}>{t('usage_stats.title')}</h1>
-        <div className={styles.headerActions}>
-          <div className={styles.timeRangeGroup}>
-            <span className={styles.timeRangeLabel}>{t('usage_stats.range_filter')}</span>
-            <Select
-              value={timeRange}
-              options={timeRangeOptions}
-              onChange={(value) => setTimeRange(value as UsageTimeRange)}
-              className={styles.timeRangeSelectControl}
-              ariaLabel={t('usage_stats.range_filter')}
-              fullWidth={false}
+        <div className={styles.headerTitleGroup}>
+          <h1 className={styles.pageTitle}>{t('usage_stats.title')}</h1>
+        </div>
+        <div className={styles.headerControls}>
+          <div className={styles.autoRefreshPanel}>
+            <div className={styles.autoRefreshControlRow}>
+              <ToggleSwitch
+                checked={autoRefreshSettings.enabled}
+                onChange={setAutoRefreshEnabled}
+                label={t('usage_stats.auto_refresh_label')}
+                ariaLabel={t('usage_stats.auto_refresh_enabled')}
+              />
+              <Select
+                value={autoRefreshIntervalSelectValue}
+                options={autoRefreshIntervalOptions}
+                onChange={(value) => {
+                  if (value === AUTO_REFRESH_CUSTOM_INTERVAL_OPTION) {
+                    setAutoRefreshMode('custom');
+                    return;
+                  }
+
+                  setPresetIntervalSeconds(Number(value));
+                }}
+                className={styles.autoRefreshSelect}
+                ariaLabel={t('usage_stats.auto_refresh_interval')}
+                fullWidth={false}
+              />
+              {autoRefreshSettings.mode === 'custom' && (
+                <div className={styles.autoRefreshCustomInput}>
+                  <Input
+                    type="number"
+                    min={MIN_USAGE_AUTO_REFRESH_SECONDS}
+                    max={MAX_USAGE_AUTO_REFRESH_SECONDS}
+                    step={1}
+                    value={customIntervalInput}
+                    onChange={(event) => setCustomIntervalInput(event.target.value)}
+                    onBlur={applyCustomInterval}
+                    onKeyDown={(event) => {
+                      if (event.key !== 'Enter') {
+                        return;
+                      }
+                      event.preventDefault();
+                      applyCustomInterval();
+                    }}
+                    label={t('usage_stats.auto_refresh_custom_seconds_label')}
+                    aria-label={t('usage_stats.auto_refresh_custom_seconds_label')}
+                    placeholder={t('usage_stats.auto_refresh_custom_seconds_placeholder')}
+                    hint={autoRefreshCustomHint || undefined}
+                  />
+                </div>
+              )}
+            </div>
+            <div className={styles.autoRefreshMeta}>
+              <span
+                className={`${styles.autoRefreshStatusBadge} ${
+                  autoRefreshStatus.tone === 'running'
+                    ? styles.autoRefreshStatusRunning
+                    : autoRefreshStatus.tone === 'refreshing'
+                    ? styles.autoRefreshStatusRefreshing
+                    : styles.autoRefreshStatusPaused
+                }`}
+              >
+                <span className={styles.autoRefreshStatusDot} aria-hidden="true" />
+                {autoRefreshStatus.label}
+              </span>
+              <span className={styles.lastRefreshed}>{lastRefreshedText}</span>
+            </div>
+          </div>
+          <div className={styles.headerActions}>
+            <div className={styles.timeRangeGroup}>
+              <span className={styles.timeRangeLabel}>{t('usage_stats.range_filter')}</span>
+              <Select
+                value={timeRange}
+                options={timeRangeOptions}
+                onChange={(value) => setTimeRange(value as UsageTimeRange)}
+                className={styles.timeRangeSelectControl}
+                ariaLabel={t('usage_stats.range_filter')}
+                fullWidth={false}
+              />
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleExport}
+              loading={exporting}
+              disabled={loading || importing}
+            >
+              {t('usage_stats.export')}
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleImport}
+              loading={importing}
+              disabled={loading || exporting}
+            >
+              {t('usage_stats.import')}
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                void handleManualRefresh().catch(() => {});
+              }}
+              disabled={loading || exporting || importing}
+            >
+              {isRefreshing || loading ? t('common.loading') : t('usage_stats.refresh')}
+            </Button>
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".json,application/json"
+              style={{ display: 'none' }}
+              onChange={handleImportChange}
             />
           </div>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={handleExport}
-            loading={exporting}
-            disabled={loading || importing}
-          >
-            {t('usage_stats.export')}
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={handleImport}
-            loading={importing}
-            disabled={loading || exporting}
-          >
-            {t('usage_stats.import')}
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => void loadUsage().catch(() => {})}
-            disabled={loading || exporting || importing}
-          >
-            {loading ? t('common.loading') : t('usage_stats.refresh')}
-          </Button>
-          <input
-            ref={importInputRef}
-            type="file"
-            accept=".json,application/json"
-            style={{ display: 'none' }}
-            onChange={handleImportChange}
-          />
-          {lastRefreshedAt && (
-            <span className={styles.lastRefreshed}>
-              {t('usage_stats.last_updated')}: {lastRefreshedAt.toLocaleTimeString()}
-            </span>
-          )}
         </div>
       </div>
 

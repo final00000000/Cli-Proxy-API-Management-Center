@@ -12,40 +12,161 @@
 
 .header {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
   flex-wrap: wrap;
+  gap: 14px;
+  padding: 16px 18px;
+  border-radius: $radius-lg;
+  border: 1px solid color-mix(in srgb, var(--border-color) 75%, transparent);
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--bg-primary) 90%, transparent), var(--bg-primary)),
+    radial-gradient(120% 180% at 10% -12%, rgba($primary-color, 0.16), transparent 62%);
+  box-shadow: var(--shadow);
+}
+
+.headerTitleGroup {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.headerControls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.autoRefreshPanel {
+  display: flex;
+  flex-direction: column;
   gap: 10px;
+  padding: 10px 12px;
+  border-radius: $radius-md;
+  border: 1px solid color-mix(in srgb, var(--border-color) 75%, transparent);
+  background: color-mix(in srgb, var(--bg-secondary) 82%, transparent);
+}
+
+.autoRefreshControlRow {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px 12px;
+  flex-wrap: wrap;
+}
+
+.autoRefreshSelect {
+  min-width: 160px;
+}
+
+.autoRefreshCustomInput {
+  min-width: 220px;
+  flex: 1 1 240px;
+
+  :global(.form-group) {
+    margin-bottom: 0;
+    gap: 4px;
+  }
+
+  :global(.form-group > label) {
+    font-size: 11px;
+    color: var(--text-secondary);
+    font-weight: 600;
+  }
+
+  :global(.input) {
+    height: 36px;
+    padding: 8px 10px;
+  }
+
+  :global(.hint) {
+    margin-top: 2px;
+    font-size: 11px;
+    line-height: 1.4;
+    color: var(--warning-text, #a16207);
+  }
+}
+
+.autoRefreshMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.autoRefreshStatusBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 11px;
+  border-radius: $radius-full;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.autoRefreshStatusDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  background: currentColor;
+}
+
+.autoRefreshStatusRunning {
+  color: var(--success-color);
+  border-color: color-mix(in srgb, var(--success-color) 35%, transparent);
+  background: color-mix(in srgb, var(--success-color) 16%, transparent);
+}
+
+.autoRefreshStatusPaused {
+  color: var(--warning-text, #92400e);
+  border-color: color-mix(in srgb, var(--warning-text, #92400e) 30%, transparent);
+  background: color-mix(in srgb, var(--warning-bg, #fef3c7) 70%, transparent);
+}
+
+.autoRefreshStatusRefreshing {
+  color: var(--primary-color);
+  border-color: color-mix(in srgb, var(--primary-color) 35%, transparent);
+  background: color-mix(in srgb, var(--primary-color) 14%, transparent);
 }
 
 .headerActions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: flex-start;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
 .lastRefreshed {
-  font-size: 11px;
+  font-size: 12px;
+  font-weight: 600;
   color: var(--text-tertiary);
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .timeRangeGroup {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   flex-wrap: wrap;
+  padding-right: 4px;
 }
 
 .timeRangeLabel {
   font-size: 12px;
   color: var(--text-secondary);
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .timeRangeSelectControl {
-  min-width: 164px;
+  min-width: 176px;
 }
 
 .pageTitle {
@@ -53,6 +174,64 @@
   font-weight: 700;
   color: var(--text-primary);
   margin: 0;
+}
+
+@include mobile {
+  .header {
+    padding: 12px;
+    gap: 10px;
+  }
+
+  .headerTitleGroup {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .headerActions {
+    width: 100%;
+    gap: 8px;
+  }
+
+  .autoRefreshPanel {
+    padding: 10px;
+  }
+
+  .autoRefreshControlRow {
+    align-items: stretch;
+  }
+
+  .autoRefreshSelect {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .autoRefreshCustomInput {
+    min-width: 0;
+    width: 100%;
+    flex: 1 1 100%;
+  }
+
+  .autoRefreshMeta {
+    align-items: flex-start;
+  }
+
+  .lastRefreshed {
+    white-space: normal;
+  }
+
+  .timeRangeGroup {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .timeRangeSelectControl {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .pageTitle {
+    font-size: 24px;
+  }
 }
 
 .errorBox {
@@ -109,11 +288,12 @@
 // Stats Grid
 .statsGrid {
   display: grid;
-  gap: 14px;
+  gap: 16px;
   grid-template-columns: repeat(12, minmax(0, 1fr));
 
   @include mobile {
     grid-template-columns: 1fr;
+    gap: 12px;
   }
 }
 
@@ -126,16 +306,15 @@
   position: relative;
   padding: 18px;
   background:
-    radial-gradient(120% 140% at 12% 0%, var(--accent-soft) 0%, rgba(0, 0, 0, 0) 62%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0)),
-    var(--bg-primary);
+    radial-gradient(120% 140% at 12% 0%, var(--accent-soft) 0%, rgba(0, 0, 0, 0) 58%),
+    linear-gradient(165deg, color-mix(in srgb, var(--bg-primary) 94%, transparent), var(--bg-primary));
   border-radius: $radius-lg;
-  border: 1px solid var(--border-color);
+  border: 1px solid color-mix(in srgb, var(--border-color) 78%, transparent);
   display: flex;
   flex-direction: column;
   gap: 10px;
   min-height: 176px;
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.14);
   transition: transform $transition-fast, box-shadow $transition-fast, border-color $transition-fast;
   overflow: hidden;
 
@@ -308,11 +487,12 @@
 
 .statTrend {
   margin-top: auto;
-  background: var(--bg-tertiary);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-tertiary) 86%, transparent), var(--bg-tertiary));
   border-radius: $radius-md;
   padding: 8px;
   height: 58px;
-  border: 1px solid var(--border-color);
+  border: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent);
 }
 
 .statTrendPlaceholder {
@@ -336,8 +516,8 @@
 .apiSortBar {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 10px;
+  gap: 8px;
+  margin-bottom: 12px;
 }
 
 .apiSortBtn {
@@ -744,12 +924,14 @@
 
 .chartWrapper {
   padding: 14px;
-  background-color: var(--bg-secondary);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-secondary) 90%, transparent), var(--bg-secondary));
   border-radius: $radius-lg;
-  border: 1px solid var(--border-color);
+  border: 1px solid color-mix(in srgb, var(--border-color) 76%, transparent);
   display: flex;
   flex-direction: column;
   gap: 12px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.08);
 }
 
 .chartLegend {
@@ -833,11 +1015,18 @@
 
 .chartsGrid {
   display: grid;
-  gap: 20px;
+  gap: 18px;
   grid-template-columns: minmax(0, 1fr);
 
   > * {
     min-width: 0;
+  }
+
+  :global(.card) {
+    border: 1px solid color-mix(in srgb, var(--border-color) 72%, transparent);
+    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.1);
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--bg-primary) 95%, transparent), var(--bg-primary));
   }
 
   @include desktop {
@@ -847,11 +1036,18 @@
 
 .detailsGrid {
   display: grid;
-  gap: 20px;
+  gap: 18px;
   grid-template-columns: minmax(0, 1fr);
 
   > * {
     min-width: 0;
+  }
+
+  :global(.card) {
+    border: 1px solid color-mix(in srgb, var(--border-color) 72%, transparent);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.1);
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--bg-primary) 95%, transparent), var(--bg-primary));
   }
 
   @include desktop {
@@ -868,10 +1064,10 @@
 
 .requestEventsToolbar {
   display: flex;
-  gap: $spacing-sm;
+  gap: 10px 12px;
   flex-wrap: wrap;
   align-items: flex-end;
-  margin-bottom: $spacing-sm;
+  margin-bottom: $spacing-md;
 }
 
 .requestEventsFilterItem {
