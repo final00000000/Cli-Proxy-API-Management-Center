@@ -6,3 +6,9 @@ export type { SparklineData, SparklineBundle, UseSparklinesOptions, UseSparkline
 
 export { useChartData } from './useChartData';
 export type { UseChartDataOptions, UseChartDataReturn } from './useChartData';
+
+export { useUsageAutoRefresh } from './useUsageAutoRefresh';
+export type {
+  UsageAutoRefreshSettings,
+  UseUsageAutoRefreshReturn,
+} from './useUsageAutoRefresh';

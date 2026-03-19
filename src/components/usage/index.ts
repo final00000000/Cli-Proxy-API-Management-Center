@@ -8,6 +8,12 @@ export type { SparklineData, SparklineBundle, UseSparklinesOptions, UseSparkline
 export { useChartData } from './hooks/useChartData';
 export type { UseChartDataOptions, UseChartDataReturn } from './hooks/useChartData';
 
+export { useUsageAutoRefresh } from './hooks/useUsageAutoRefresh';
+export type {
+  UsageAutoRefreshSettings,
+  UseUsageAutoRefreshReturn,
+} from './hooks/useUsageAutoRefresh';
+
 // Components
 export { StatCards } from './StatCards';
 export type { StatCardsProps } from './StatCards';
