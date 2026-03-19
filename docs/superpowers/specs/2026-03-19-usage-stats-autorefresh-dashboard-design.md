@@ -29,11 +29,12 @@ This work stays within the official management center architecture and keeps sin
 1. Auto-refresh is enabled by default on the usage statistics page.
 2. Users can enable or disable it explicitly.
 3. Users can choose from preset intervals and also enter a custom interval in seconds.
-4. Auto-refresh should only execute when all of the following are true:
+4. The default preset interval is 60 seconds, and that value is pre-selected on first load.
+5. Auto-refresh should only execute when all of the following are true:
    - the current page is the usage statistics page
    - the browser tab is visible
    - the browser window is focused
-5. If any gating condition fails, the page should not send the refresh request.
+6. If any gating condition fails, the page should not send the refresh request.
 
 ### Visual Direction
 
@@ -55,7 +56,8 @@ The usage page header area gets a dedicated auto-refresh control cluster that fe
 1. A primary toggle switch for auto-refresh.
 2. A preset interval selector for common values such as 15s, 30s, 60s, and 120s.
 3. A custom input path for users who want a specific interval in seconds.
-4. A compact status label showing the current refresh state.
+4. Custom interval values must stay within 15 to 3600 seconds.
+5. A compact status label showing the current refresh state.
 
 The control should not compete with the main time-range and export actions. It belongs in the operational control area rather than inside the chart body.
 
@@ -191,7 +193,8 @@ These events are sufficient for the approved gating behavior and avoid unnecessa
 1. Failed scheduled refreshes should surface through the page's normal data-loading error behavior.
 2. Browser inactivity should not be treated as an error.
 3. Invalid custom interval input should be clamped or rejected with inline guidance instead of silent breakage.
-4. Auto-refresh must never trap the page in a permanent loading state after a failed request.
+4. Values below 15 seconds should clamp to 15 seconds, and values above 3600 seconds should clamp to 3600 seconds.
+5. Auto-refresh must never trap the page in a permanent loading state after a failed request.
 
 ## Accessibility And Usability
 
