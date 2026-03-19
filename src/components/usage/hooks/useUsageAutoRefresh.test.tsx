@@ -79,6 +79,47 @@ describe('useUsageAutoRefresh', () => {
     expect(onRefresh).toHaveBeenCalledTimes(1);
   });
 
+  it('handles storage write failures through safe localStorage behavior', () => {
+    const onRefresh = vi.fn(async () => undefined);
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('storage unavailable');
+    });
+
+    expect(() => {
+      const { result } = renderHook(() => useUsageAutoRefresh(onRefresh, false));
+
+      act(() => {
+        result.current.setEnabled(false);
+      });
+    }).not.toThrow();
+
+    expect(consoleErrorSpy).toHaveBeenCalled();
+  });
+
+  it('catches and logs auto-refresh rejections', async () => {
+    const refreshError = new Error('refresh failed');
+    const onRefresh = vi.fn().mockRejectedValue(refreshError);
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    renderHook(() => useUsageAutoRefresh(onRefresh, false));
+
+    act(() => {
+      vi.advanceTimersByTime(DEFAULT_USAGE_AUTO_REFRESH_SECONDS * 1000);
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      '[useUsageAutoRefresh] auto refresh failed',
+      refreshError,
+    );
+  });
+
   it('skips ticks while a refresh is already in flight', async () => {
     const pendingRefresh = createDeferred();
     const onRefresh = vi

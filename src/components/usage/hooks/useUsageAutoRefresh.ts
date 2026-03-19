@@ -94,10 +94,27 @@ export function useUsageAutoRefresh(
   const [isWindowFocused, setIsWindowFocused] = useState(document.hasFocus());
   const [isRefreshing, setIsRefreshing] = useState(false);
   const refreshInFlightRef = useRef(false);
+  const didPersistInitialSettingsRef = useRef(false);
 
   useEffect(() => {
-    window.localStorage.setItem(USAGE_AUTO_REFRESH_STORAGE_KEY, JSON.stringify(settings));
-  }, [settings]);
+    if (didPersistInitialSettingsRef.current) {
+      return;
+    }
+
+    didPersistInitialSettingsRef.current = true;
+    setStoredSettings((previous) => {
+      const normalized = normalizeUsageAutoRefreshSettings(previous);
+      if (
+        previous.enabled === normalized.enabled &&
+        previous.mode === normalized.mode &&
+        previous.intervalSeconds === normalized.intervalSeconds
+      ) {
+        return previous;
+      }
+
+      return normalized;
+    });
+  }, [setStoredSettings]);
 
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -154,7 +171,9 @@ export function useUsageAutoRefresh(
 
   useInterval(
     () => {
-      void runRefresh('auto');
+      void runRefresh('auto').catch((error: unknown) => {
+        console.error('[useUsageAutoRefresh] auto refresh failed', error);
+      });
     },
     pauseReason === null ? settings.intervalSeconds * 1000 : null,
   );
