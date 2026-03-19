@@ -220,8 +220,11 @@ export function useUsageAutoRefresh(
 
   const applyCustomInterval = useCallback(() => {
     const rawValue = Number(customIntervalInput);
+    const normalizedValue = Number.isFinite(rawValue)
+      ? rawValue
+      : MIN_USAGE_AUTO_REFRESH_SECONDS;
     const roundedValue = Number.isFinite(rawValue) ? Math.round(rawValue) : rawValue;
-    const intervalSeconds = clampUsageAutoRefreshSeconds(rawValue);
+    const intervalSeconds = clampUsageAutoRefreshSeconds(normalizedValue);
     const isWithinRange =
       Number.isFinite(roundedValue) &&
       roundedValue >= MIN_USAGE_AUTO_REFRESH_SECONDS &&

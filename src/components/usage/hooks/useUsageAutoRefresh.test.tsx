@@ -300,6 +300,29 @@ describe('useUsageAutoRefresh', () => {
     expect(result.current.customIntervalHint).toBe('');
   });
 
+  it('clamps invalid custom input to minimum instead of default interval', () => {
+    const onRefresh = vi.fn(async () => undefined);
+    const { result } = renderHook(() => useUsageAutoRefresh(onRefresh, false));
+
+    act(() => {
+      result.current.setMode('custom');
+    });
+
+    act(() => {
+      result.current.setCustomIntervalInput('not-a-number');
+    });
+
+    act(() => {
+      result.current.applyCustomInterval();
+    });
+
+    expect(result.current.settings.intervalSeconds).toBe(MIN_USAGE_AUTO_REFRESH_SECONDS);
+    expect(result.current.customIntervalInput).toBe(String(MIN_USAGE_AUTO_REFRESH_SECONDS));
+    expect(result.current.customIntervalHint).toBe(
+      `Enter a value between ${MIN_USAGE_AUTO_REFRESH_SECONDS} and ${MAX_USAGE_AUTO_REFRESH_SECONDS} seconds. Adjusted to ${MIN_USAGE_AUTO_REFRESH_SECONDS} seconds.`,
+    );
+  });
+
   it('cleans up listeners/timers on unmount', () => {
     const addDocumentListenerSpy = vi.spyOn(document, 'addEventListener');
     const removeDocumentListenerSpy = vi.spyOn(document, 'removeEventListener');
