@@ -216,6 +216,9 @@ These events are sufficient for the approved gating behavior and avoid unnecessa
 7. No overlapping refresh requests occur under slow network conditions.
 8. Interval changes take effect without page reload.
 9. Persisted settings restore correctly after reload.
+10. Leaving the usage page stops scheduled refresh and disposes the active timer/listener set.
+11. Entering a custom value below 15 seconds clamps or rejects the value with inline guidance and schedules with the valid result only.
+12. Entering a custom value above 3600 seconds clamps or rejects the value with inline guidance and schedules with the valid result only.
 
 ### UI Checks
 
