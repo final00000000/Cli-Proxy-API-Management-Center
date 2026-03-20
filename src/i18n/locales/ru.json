@@ -944,6 +944,7 @@
     "refresh": "Обновить",
     "export": "Экспорт",
     "import": "Импорт",
+    "header_controls": "Панель управления статистикой",
     "auto_refresh_label": "Автообновление",
     "auto_refresh_enabled": "Включить автообновление",
     "auto_refresh_interval": "Интервал автообновления",

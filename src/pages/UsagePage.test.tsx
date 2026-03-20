@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { UseUsageDataReturn } from '@/components/usage/hooks/useUsageData';
@@ -18,6 +18,7 @@ vi.mock('react-i18next', () => ({
         'usage_stats.range_7h': 'Last 7 Hours',
         'usage_stats.range_24h': 'Last 24 Hours',
         'usage_stats.range_7d': 'Last 7 Days',
+        'usage_stats.header_controls': 'Usage controls',
         'usage_stats.export': 'Export',
         'usage_stats.import': 'Import',
         'usage_stats.refresh': 'Refresh',
@@ -162,6 +163,23 @@ describe('UsagePage auto-refresh controls', () => {
     expect(
       screen.getByRole('button', { name: 'Auto-refresh interval' }),
     ).toBeInTheDocument();
+  });
+
+  it('keeps time range and auto-refresh controls in the same top control group', () => {
+    render(<UsagePage />);
+
+    const controlsGroup = screen.getByRole('group', { name: 'Usage controls' });
+
+    expect(within(controlsGroup).getByRole('button', { name: 'Time Range' })).toBeInTheDocument();
+    expect(within(controlsGroup).getByRole('button', { name: 'Export' })).toBeInTheDocument();
+    expect(within(controlsGroup).getByRole('button', { name: 'Import' })).toBeInTheDocument();
+    expect(
+      within(controlsGroup).getByRole('checkbox', { name: 'Enable auto-refresh' }),
+    ).toBeInTheDocument();
+    expect(
+      within(controlsGroup).getByRole('button', { name: 'Auto-refresh interval' }),
+    ).toBeInTheDocument();
+    expect(within(controlsGroup).getByRole('button', { name: 'Refresh' })).toBeInTheDocument();
   });
 
   it('renders live status text and last refreshed text', () => {

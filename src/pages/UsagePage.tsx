@@ -16,6 +16,13 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { Select } from '@/components/ui/Select';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 import { Input } from '@/components/ui/Input';
+import {
+  IconDownload,
+  IconInbox,
+  IconRefreshCw,
+  IconSlidersHorizontal,
+  IconTimer
+} from '@/components/ui/icons';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useHeaderRefresh } from '@/hooks/useHeaderRefresh';
 import { useThemeStore, useConfigStore } from '@/stores';
@@ -344,60 +351,78 @@ export function UsagePage() {
         </div>
       )}
 
-      <div className={styles.header}>
+      <div className={styles.header} role="group" aria-label={t('usage_stats.header_controls')}>
         <div className={styles.headerTitleGroup}>
-          <h1 className={styles.pageTitle}>{t('usage_stats.title')}</h1>
+          <div className={styles.headerTitleBlock}>
+            <h1 className={styles.pageTitle}>{t('usage_stats.title')}</h1>
+            <div className={styles.headerSummary}>
+              <span className={styles.headerSummaryItem}>{lastRefreshedText}</span>
+            </div>
+          </div>
+          <div className={styles.headerActions}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className={styles.headerActionButton}
+              onClick={handleExport}
+              loading={exporting}
+              disabled={loading || importing}
+            >
+              <IconDownload size={14} className={styles.actionIcon} />
+              {t('usage_stats.export')}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className={styles.headerActionButton}
+              onClick={handleImport}
+              loading={importing}
+              disabled={loading || exporting}
+            >
+              <IconInbox size={14} className={styles.actionIcon} />
+              {t('usage_stats.import')}
+            </Button>
+          </div>
         </div>
-        <div className={styles.headerControls}>
-          <div className={styles.autoRefreshPanel}>
-            <div className={styles.autoRefreshControlRow}>
-              <ToggleSwitch
-                checked={autoRefreshSettings.enabled}
-                onChange={setAutoRefreshEnabled}
-                label={t('usage_stats.auto_refresh_label')}
-                ariaLabel={t('usage_stats.auto_refresh_enabled')}
-              />
+        <div className={styles.controlDeck}>
+          <div className={styles.timeRangeGroup}>
+            <div className={styles.controlSectionHeader}>
+              <span className={styles.controlSectionLabel}>
+                <IconSlidersHorizontal size={14} className={styles.controlSectionIcon} />
+                {t('usage_stats.range_filter')}
+              </span>
+            </div>
+            <div className={styles.timeRangeControls}>
               <Select
-                value={autoRefreshIntervalSelectValue}
-                options={autoRefreshIntervalOptions}
-                onChange={(value) => {
-                  if (value === AUTO_REFRESH_CUSTOM_INTERVAL_OPTION) {
-                    setAutoRefreshMode('custom');
-                    return;
-                  }
-
-                  setPresetIntervalSeconds(Number(value));
-                }}
-                className={styles.autoRefreshSelect}
-                ariaLabel={t('usage_stats.auto_refresh_interval')}
+                value={timeRange}
+                options={timeRangeOptions}
+                onChange={(value) => setTimeRange(value as UsageTimeRange)}
+                className={styles.timeRangeSelectControl}
+                ariaLabel={t('usage_stats.range_filter')}
                 fullWidth={false}
               />
-              {autoRefreshSettings.mode === 'custom' && (
-                <div className={styles.autoRefreshCustomInput}>
-                  <Input
-                    type="number"
-                    min={MIN_USAGE_AUTO_REFRESH_SECONDS}
-                    max={MAX_USAGE_AUTO_REFRESH_SECONDS}
-                    step={1}
-                    value={customIntervalInput}
-                    onChange={(event) => setCustomIntervalInput(event.target.value)}
-                    onBlur={applyCustomInterval}
-                    onKeyDown={(event) => {
-                      if (event.key !== 'Enter') {
-                        return;
-                      }
-                      event.preventDefault();
-                      applyCustomInterval();
-                    }}
-                    label={t('usage_stats.auto_refresh_custom_seconds_label')}
-                    aria-label={t('usage_stats.auto_refresh_custom_seconds_label')}
-                    placeholder={t('usage_stats.auto_refresh_custom_seconds_placeholder')}
-                    hint={autoRefreshCustomHint || undefined}
-                  />
-                </div>
-              )}
+              <Button
+                variant="secondary"
+                size="sm"
+                className={styles.autoRefreshActionButton}
+                loading={isRefreshing || loading}
+                onClick={() => {
+                  void handleManualRefresh().catch(() => {});
+                }}
+                disabled={loading || exporting || importing}
+              >
+                <IconRefreshCw size={14} className={styles.actionIcon} />
+                {t('usage_stats.refresh')}
+              </Button>
             </div>
-            <div className={styles.autoRefreshMeta}>
+          </div>
+          <div className={styles.controlDivider} aria-hidden="true" />
+          <div className={styles.autoRefreshPanel}>
+            <div className={styles.controlSectionHeader}>
+              <span className={styles.controlSectionLabel}>
+                <IconTimer size={14} className={styles.controlSectionIcon} />
+                {t('usage_stats.auto_refresh_label')}
+              </span>
               <span
                 className={`${styles.autoRefreshStatusBadge} ${
                   autoRefreshStatus.tone === 'running'
@@ -410,57 +435,81 @@ export function UsagePage() {
                 <span className={styles.autoRefreshStatusDot} aria-hidden="true" />
                 {autoRefreshStatus.label}
               </span>
-              <span className={styles.lastRefreshed}>{lastRefreshedText}</span>
             </div>
-          </div>
-          <div className={styles.headerActions}>
-            <div className={styles.timeRangeGroup}>
-              <span className={styles.timeRangeLabel}>{t('usage_stats.range_filter')}</span>
-              <Select
-                value={timeRange}
-                options={timeRangeOptions}
-                onChange={(value) => setTimeRange(value as UsageTimeRange)}
-                className={styles.timeRangeSelectControl}
-                ariaLabel={t('usage_stats.range_filter')}
-                fullWidth={false}
-              />
+            <div className={styles.autoRefreshToolbar}>
+              <div className={`${styles.autoRefreshField} ${styles.autoRefreshToggleField}`}>
+                <span className={styles.autoRefreshFieldLabel}>
+                  {t('usage_stats.auto_refresh_enabled')}
+                </span>
+                <div className={styles.autoRefreshToggleControl}>
+                  <ToggleSwitch
+                    checked={autoRefreshSettings.enabled}
+                    onChange={setAutoRefreshEnabled}
+                    ariaLabel={t('usage_stats.auto_refresh_enabled')}
+                  />
+                </div>
+              </div>
+              <div className={styles.autoRefreshField}>
+                <span className={styles.autoRefreshFieldLabel}>
+                  {t('usage_stats.auto_refresh_interval')}
+                </span>
+                <Select
+                  value={autoRefreshIntervalSelectValue}
+                  options={autoRefreshIntervalOptions}
+                  onChange={(value) => {
+                    if (value === AUTO_REFRESH_CUSTOM_INTERVAL_OPTION) {
+                      setAutoRefreshMode('custom');
+                      return;
+                    }
+
+                    setPresetIntervalSeconds(Number(value));
+                  }}
+                  className={styles.autoRefreshSelect}
+                  ariaLabel={t('usage_stats.auto_refresh_interval')}
+                  fullWidth={false}
+                />
+              </div>
             </div>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={handleExport}
-              loading={exporting}
-              disabled={loading || importing}
-            >
-              {t('usage_stats.export')}
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={handleImport}
-              loading={importing}
-              disabled={loading || exporting}
-            >
-              {t('usage_stats.import')}
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                void handleManualRefresh().catch(() => {});
-              }}
-              disabled={loading || exporting || importing}
-            >
-              {isRefreshing || loading ? t('common.loading') : t('usage_stats.refresh')}
-            </Button>
-            <input
-              ref={importInputRef}
-              type="file"
-              accept=".json,application/json"
-              style={{ display: 'none' }}
-              onChange={handleImportChange}
-            />
+            {autoRefreshSettings.mode === 'custom' && (
+              <div className={styles.autoRefreshCustomRow}>
+                <div className={`${styles.autoRefreshField} ${styles.autoRefreshCustomField}`}>
+                  <span className={styles.autoRefreshFieldLabel}>
+                    {t('usage_stats.auto_refresh_custom_seconds_label')}
+                  </span>
+                  <div className={styles.autoRefreshCustomInput}>
+                    <Input
+                      type="number"
+                      min={MIN_USAGE_AUTO_REFRESH_SECONDS}
+                      max={MAX_USAGE_AUTO_REFRESH_SECONDS}
+                      step={1}
+                      value={customIntervalInput}
+                      onChange={(event) => setCustomIntervalInput(event.target.value)}
+                      onBlur={applyCustomInterval}
+                      onKeyDown={(event) => {
+                        if (event.key !== 'Enter') {
+                          return;
+                        }
+                        event.preventDefault();
+                        applyCustomInterval();
+                      }}
+                      aria-label={t('usage_stats.auto_refresh_custom_seconds_label')}
+                      placeholder={t('usage_stats.auto_refresh_custom_seconds_placeholder')}
+                      hint={autoRefreshCustomHint || undefined}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
+        </div>
+        <div className={styles.headerUtilities}>
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".json,application/json"
+            style={{ display: 'none' }}
+            onChange={handleImportChange}
+          />
         </div>
       </div>
 

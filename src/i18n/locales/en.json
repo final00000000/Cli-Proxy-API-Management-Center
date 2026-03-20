@@ -941,6 +941,7 @@
     "refresh": "Refresh",
     "export": "Export",
     "import": "Import",
+    "header_controls": "Usage controls",
     "auto_refresh_label": "Auto-refresh",
     "auto_refresh_enabled": "Enable auto-refresh",
     "auto_refresh_interval": "Auto-refresh interval",
