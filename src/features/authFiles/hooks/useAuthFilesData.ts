@@ -7,7 +7,6 @@ import type { AuthFileItem } from '@/types';
 import { formatFileSize } from '@/utils/format';
 import { MAX_AUTH_FILE_SIZE } from '@/utils/constants';
 import { downloadBlob } from '@/utils/download';
-import { detectAndCleanupAuthFiles401 } from '@/features/authFiles/quotaDetection';
 import {
   getTypeLabel,
   hasAuthFileStatusMessage,
@@ -17,6 +16,7 @@ import {
 type DeleteAllOptions = {
   filter: string;
   problemOnly: boolean;
+  problemNames?: Set<string>;
   onResetFilterToAll: () => void;
   onResetProblemOnly: () => void;
 };
@@ -28,25 +28,20 @@ export type UseAuthFilesDataResult = {
   loading: boolean;
   error: string;
   uploading: boolean;
-  detecting401: boolean;
   deleting: string | null;
   deletingAll: boolean;
   statusUpdating: Record<string, boolean>;
-  batchStatusUpdating: boolean;
   fileInputRef: RefObject<HTMLInputElement | null>;
   loadFiles: () => Promise<void>;
   handleUploadClick: () => void;
   handleFileChange: (event: ChangeEvent<HTMLInputElement>) => Promise<void>;
   handleDelete: (name: string) => void;
   handleDeleteAll: (options: DeleteAllOptions) => void;
-  run401Detection: (targets: AuthFileItem[]) => Promise<void>;
   handleDownload: (name: string) => Promise<void>;
   handleStatusToggle: (item: AuthFileItem, enabled: boolean) => Promise<void>;
   toggleSelect: (name: string) => void;
   selectAllVisible: (visibleFiles: AuthFileItem[]) => void;
-  invertVisibleSelection: (visibleFiles: AuthFileItem[]) => void;
   deselectAll: () => void;
-  batchDownload: (names: string[]) => Promise<void>;
   batchSetStatus: (names: string[], enabled: boolean) => Promise<void>;
   batchDelete: (names: string[]) => void;
 };
@@ -64,15 +59,12 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [uploading, setUploading] = useState(false);
-  const [detecting401, setDetecting401] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [deletingAll, setDeletingAll] = useState(false);
   const [statusUpdating, setStatusUpdating] = useState<Record<string, boolean>>({});
-  const [batchStatusUpdating, setBatchStatusUpdating] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const batchStatusPendingRef = useRef(false);
   const selectionCount = selectedFiles.size;
   const toggleSelect = useCallback((name: string) => {
     setSelectedFiles((prev) => {
@@ -90,31 +82,7 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
     const nextSelected = visibleFiles
       .filter((file) => !isRuntimeOnlyAuthFile(file))
       .map((file) => file.name);
-    if (nextSelected.length === 0) return;
-    setSelectedFiles((prev) => {
-      const next = new Set(prev);
-      nextSelected.forEach((name) => next.add(name));
-      return next;
-    });
-  }, []);
-
-  const invertVisibleSelection = useCallback((visibleFiles: AuthFileItem[]) => {
-    const visibleNames = visibleFiles
-      .filter((file) => !isRuntimeOnlyAuthFile(file))
-      .map((file) => file.name);
-    if (visibleNames.length === 0) return;
-
-    setSelectedFiles((prev) => {
-      const next = new Set(prev);
-      visibleNames.forEach((name) => {
-        if (next.has(name)) {
-          next.delete(name);
-        } else {
-          next.add(name);
-        }
-      });
-      return next;
-    });
+    setSelectedFiles(new Set(nextSelected));
   }, []);
 
   const deselectAll = useCallback(() => {
@@ -271,7 +239,7 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
           } finally {
             setDeleting(null);
           }
-        },
+        }
       });
     },
     [showConfirmation, showNotification, t]
@@ -279,7 +247,8 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
 
   const handleDeleteAll = useCallback(
     (deleteAllOptions: DeleteAllOptions) => {
-      const { filter, problemOnly, onResetFilterToAll, onResetProblemOnly } = deleteAllOptions;
+      const { filter, problemOnly, problemNames, onResetFilterToAll, onResetProblemOnly } =
+        deleteAllOptions;
       const isFiltered = filter !== 'all';
       const isProblemOnly = problemOnly === true;
       const typeLabel = isFiltered ? getTypeLabel(t, filter) : t('auth_files.filter_all');
@@ -308,7 +277,11 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
               const filesToDelete = files.filter((file) => {
                 if (isRuntimeOnlyAuthFile(file)) return false;
                 if (isFiltered && file.type !== filter) return false;
-                if (isProblemOnly && !hasAuthFileStatusMessage(file)) return false;
+                if (isProblemOnly) {
+                  const matchedByStatus = hasAuthFileStatusMessage(file);
+                  const matchedBySweep = problemNames?.has(file.name) === true;
+                  if (!matchedByStatus && !matchedBySweep) return false;
+                }
                 return true;
               });
 
@@ -399,7 +372,7 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
           } finally {
             setDeletingAll(false);
           }
-        },
+        }
       });
     },
     [deselectAll, files, showConfirmation, showNotification, t]
@@ -421,69 +394,6 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
       }
     },
     [showNotification, t]
-  );
-
-  const run401Detection = useCallback(
-    async (targets: AuthFileItem[]) => {
-      if (detecting401) return;
-
-      setDetecting401(true);
-      try {
-        const result = await detectAndCleanupAuthFiles401(targets, t, showNotification);
-
-        if (result.deletedNames.length > 0) {
-          const deletedSet = new Set(result.deletedNames);
-          setFiles((prev) => prev.filter((file) => !deletedSet.has(file.name)));
-          setSelectedFiles((prev) => {
-            if (prev.size === 0) return prev;
-            let changed = false;
-            const next = new Set<string>();
-            prev.forEach((name) => {
-              if (deletedSet.has(name)) {
-                changed = true;
-              } else {
-                next.add(name);
-              }
-            });
-            return changed ? next : prev;
-          });
-          await refreshKeyStats();
-        }
-
-        if (result.scannedCount === 0) {
-          showNotification(t('auth_files.detect_401_none_supported'), 'info');
-          return;
-        }
-
-        const skippedSuffix =
-          result.skippedCount > 0
-            ? t('auth_files.detect_401_skipped_suffix', { count: result.skippedCount })
-            : '';
-
-        if (result.deletedNames.length === 0) {
-          showNotification(
-            t('auth_files.detect_401_none_found', {
-              scanned: result.scannedCount,
-              skippedSuffix,
-            }),
-            'success'
-          );
-          return;
-        }
-
-        showNotification(
-          t('auth_files.detect_401_done', {
-            scanned: result.scannedCount,
-            deleted: result.deletedNames.length,
-            skippedSuffix,
-          }),
-          'success'
-        );
-      } finally {
-        setDetecting401(false);
-      }
-    },
-    [detecting401, refreshKeyStats, showNotification, t]
   );
 
   const handleStatusToggle = useCallback(
@@ -526,131 +436,62 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
 
   const batchSetStatus = useCallback(
     async (names: string[], enabled: boolean) => {
-      if (batchStatusPendingRef.current) return;
-
       const uniqueNames = Array.from(new Set(names));
       if (uniqueNames.length === 0) return;
-      if (uniqueNames.some((name) => statusUpdating[name] === true)) return;
 
-      const originalDisabled = new Map(
-        files
-          .filter((file) => uniqueNames.includes(file.name))
-          .map((file) => [file.name, file.disabled === true])
-      );
-      const targetNames = new Set(originalDisabled.keys());
-      const targetNameList = Array.from(targetNames);
-      if (targetNameList.length === 0) return;
-
+      const targetNames = new Set(uniqueNames);
       const nextDisabled = !enabled;
 
-      batchStatusPendingRef.current = true;
-      setBatchStatusUpdating(true);
-      setStatusUpdating((prev) => {
-        const next = { ...prev };
-        targetNameList.forEach((name) => {
-          next[name] = true;
-        });
-        return next;
-      });
       setFiles((prev) =>
         prev.map((file) =>
           targetNames.has(file.name) ? { ...file, disabled: nextDisabled } : file
         )
       );
 
-      try {
-        const results = await Promise.allSettled(
-          targetNameList.map((name) => authFilesApi.setStatus(name, nextDisabled))
-        );
-
-        let successCount = 0;
-        let failCount = 0;
-        const failedNames = new Set<string>();
-        const confirmedDisabled = new Map<string, boolean>();
-
-        results.forEach((result, index) => {
-          const name = targetNameList[index];
-          if (result.status === 'fulfilled') {
-            successCount++;
-            confirmedDisabled.set(name, result.value.disabled);
-          } else {
-            failCount++;
-            failedNames.add(name);
-          }
-        });
-
-        setFiles((prev) =>
-          prev.map((file) => {
-            if (failedNames.has(file.name)) {
-              return { ...file, disabled: originalDisabled.get(file.name) === true };
-            }
-            if (confirmedDisabled.has(file.name)) {
-              return { ...file, disabled: confirmedDisabled.get(file.name) };
-            }
-            return file;
-          })
-        );
-
-        if (failCount === 0) {
-          showNotification(t('auth_files.batch_status_success', { count: successCount }), 'success');
-        } else {
-          showNotification(
-            t('auth_files.batch_status_partial', { success: successCount, failed: failCount }),
-            'warning'
-          );
-        }
-
-        deselectAll();
-      } finally {
-        batchStatusPendingRef.current = false;
-        setBatchStatusUpdating(false);
-        setStatusUpdating((prev) => {
-          const next = { ...prev };
-          targetNameList.forEach((name) => {
-            delete next[name];
-          });
-          return next;
-        });
-      }
-    },
-    [deselectAll, files, showNotification, statusUpdating, t]
-  );
-
-  const batchDownload = useCallback(
-    async (names: string[]) => {
-      const uniqueNames = Array.from(new Set(names));
-      if (uniqueNames.length === 0) return;
+      const results = await Promise.allSettled(
+        uniqueNames.map((name) => authFilesApi.setStatus(name, nextDisabled))
+      );
 
       let successCount = 0;
       let failCount = 0;
+      const failedNames = new Set<string>();
+      const confirmedDisabled = new Map<string, boolean>();
 
-      for (const name of uniqueNames) {
-        try {
-          const response = await apiClient.getRaw(
-            `/auth-files/download?name=${encodeURIComponent(name)}`,
-            { responseType: 'blob' }
-          );
-          const blob = new Blob([response.data]);
-          downloadBlob({ filename: name, blob });
+      results.forEach((result, index) => {
+        const name = uniqueNames[index];
+        if (result.status === 'fulfilled') {
           successCount++;
-        } catch {
+          confirmedDisabled.set(name, result.value.disabled);
+        } else {
           failCount++;
+          failedNames.add(name);
         }
-      }
+      });
+
+      setFiles((prev) =>
+        prev.map((file) => {
+          if (failedNames.has(file.name)) {
+            return { ...file, disabled: !nextDisabled };
+          }
+          if (confirmedDisabled.has(file.name)) {
+            return { ...file, disabled: confirmedDisabled.get(file.name) };
+          }
+          return file;
+        })
+      );
 
       if (failCount === 0) {
-        showNotification(
-          t('auth_files.batch_download_success', { count: successCount }),
-          'success'
-        );
+        showNotification(t('auth_files.batch_status_success', { count: successCount }), 'success');
       } else {
         showNotification(
-          t('auth_files.batch_download_partial', { success: successCount, failed: failCount }),
+          t('auth_files.batch_status_partial', { success: successCount, failed: failCount }),
           'warning'
         );
       }
+
+      deselectAll();
     },
-    [showNotification, t]
+    [deselectAll, showNotification, t]
   );
 
   const batchDelete = useCallback(
@@ -699,21 +540,18 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
           });
 
           if (failCount === 0) {
-            showNotification(
-              `${t('auth_files.delete_all_success')} (${deleted.length})`,
-              'success'
-            );
+            showNotification(`${t('auth_files.delete_all_success')} (${deleted.length})`, 'success');
           } else {
             showNotification(
               t('auth_files.delete_filtered_partial', {
                 success: deleted.length,
                 failed: failCount,
-                type: t('auth_files.filter_all'),
+                type: t('auth_files.filter_all')
               }),
               'warning'
             );
           }
-        },
+        }
       });
     },
     [showConfirmation, showNotification, t]
@@ -726,26 +564,21 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
     loading,
     error,
     uploading,
-    detecting401,
     deleting,
     deletingAll,
     statusUpdating,
-    batchStatusUpdating,
     fileInputRef,
     loadFiles,
     handleUploadClick,
     handleFileChange,
     handleDelete,
     handleDeleteAll,
-    run401Detection,
     handleDownload,
     handleStatusToggle,
     toggleSelect,
     selectAllVisible,
-    invertVisibleSelection,
     deselectAll,
-    batchDownload,
     batchSetStatus,
-    batchDelete,
+    batchDelete
   };
 }
