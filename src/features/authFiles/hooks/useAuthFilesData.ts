@@ -7,6 +7,7 @@ import type { AuthFileItem } from '@/types';
 import { formatFileSize } from '@/utils/format';
 import { MAX_AUTH_FILE_SIZE } from '@/utils/constants';
 import { downloadBlob } from '@/utils/download';
+import { detectAndCleanupAuthFiles401 } from '@/features/authFiles/quotaDetection';
 import {
   getTypeLabel,
   hasAuthFileStatusMessage,
@@ -27,6 +28,7 @@ export type UseAuthFilesDataResult = {
   loading: boolean;
   error: string;
   uploading: boolean;
+  detecting401: boolean;
   deleting: string | null;
   deletingAll: boolean;
   statusUpdating: Record<string, boolean>;
@@ -37,6 +39,7 @@ export type UseAuthFilesDataResult = {
   handleFileChange: (event: ChangeEvent<HTMLInputElement>) => Promise<void>;
   handleDelete: (name: string) => void;
   handleDeleteAll: (options: DeleteAllOptions) => void;
+  run401Detection: (targets: AuthFileItem[]) => Promise<void>;
   handleDownload: (name: string) => Promise<void>;
   handleStatusToggle: (item: AuthFileItem, enabled: boolean) => Promise<void>;
   toggleSelect: (name: string) => void;
@@ -61,6 +64,7 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [detecting401, setDetecting401] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [deletingAll, setDeletingAll] = useState(false);
   const [statusUpdating, setStatusUpdating] = useState<Record<string, boolean>>({});
@@ -419,6 +423,69 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
     [showNotification, t]
   );
 
+  const run401Detection = useCallback(
+    async (targets: AuthFileItem[]) => {
+      if (detecting401) return;
+
+      setDetecting401(true);
+      try {
+        const result = await detectAndCleanupAuthFiles401(targets, t, showNotification);
+
+        if (result.deletedNames.length > 0) {
+          const deletedSet = new Set(result.deletedNames);
+          setFiles((prev) => prev.filter((file) => !deletedSet.has(file.name)));
+          setSelectedFiles((prev) => {
+            if (prev.size === 0) return prev;
+            let changed = false;
+            const next = new Set<string>();
+            prev.forEach((name) => {
+              if (deletedSet.has(name)) {
+                changed = true;
+              } else {
+                next.add(name);
+              }
+            });
+            return changed ? next : prev;
+          });
+          await refreshKeyStats();
+        }
+
+        if (result.scannedCount === 0) {
+          showNotification(t('auth_files.detect_401_none_supported'), 'info');
+          return;
+        }
+
+        const skippedSuffix =
+          result.skippedCount > 0
+            ? t('auth_files.detect_401_skipped_suffix', { count: result.skippedCount })
+            : '';
+
+        if (result.deletedNames.length === 0) {
+          showNotification(
+            t('auth_files.detect_401_none_found', {
+              scanned: result.scannedCount,
+              skippedSuffix,
+            }),
+            'success'
+          );
+          return;
+        }
+
+        showNotification(
+          t('auth_files.detect_401_done', {
+            scanned: result.scannedCount,
+            deleted: result.deletedNames.length,
+            skippedSuffix,
+          }),
+          'success'
+        );
+      } finally {
+        setDetecting401(false);
+      }
+    },
+    [detecting401, refreshKeyStats, showNotification, t]
+  );
+
   const handleStatusToggle = useCallback(
     async (item: AuthFileItem, enabled: boolean) => {
       const name = item.name;
@@ -659,6 +726,7 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
     loading,
     error,
     uploading,
+    detecting401,
     deleting,
     deletingAll,
     statusUpdating,
@@ -669,6 +737,7 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
     handleFileChange,
     handleDelete,
     handleDeleteAll,
+    run401Detection,
     handleDownload,
     handleStatusToggle,
     toggleSelect,
