@@ -1,159 +1,219 @@
-# CLI Proxy API Management Center
+# CLI Proxy API 管理中心（技术文档）
 
-A single-file Web UI (React + TypeScript) for operating and troubleshooting the **CLI Proxy API** via its **Management API** (config, credentials, logs, and usage).
+[English](README_EN.md)
 
-[中文文档](README_CN.md)
+## 1. 项目定位
 
-**Main Project**: https://github.com/router-for-me/CLIProxyAPI  
-**Example URL**: https://remote.router-for.me/  
-**Minimum Required Version**: ≥ 6.8.0 (recommended ≥ 6.8.15)
+本仓库仅包含 **CLI Proxy API Management Center** 的前端管理界面。
 
-Since version 6.0.19, the Web UI ships with the main program; access it via `/management.html` on the API port once the service is running.
+- 技术栈：React 19 + TypeScript + Vite
+- 运行方式：构建为 **单文件 `management.html`**
+- 作用范围：通过后端 **Management API** 管理配置、认证文件、配额、日志、统计等
+- 不包含：代理转发逻辑、模型请求转发逻辑、服务端业务实现
 
-## What this is (and isn’t)
+> 结论：这是 **前端管理面板仓库**，不是后端代理仓库。
 
-- This repository is the Web UI only. It talks to the CLI Proxy API **Management API** (`/v0/management`) to read/update config, upload credentials, view logs, and inspect usage.
-- It is **not** a proxy and does not forward traffic.
+---
 
-## Quick start
+## 2. 运行要求
 
-### Option A: Use the Web UI bundled in CLI Proxy API (recommended)
+### 2.1 后端要求
 
-1. Start your CLI Proxy API service.
-2. Open: `http://<host>:<api_port>/management.html`
-3. Enter your **management key** and connect.
+- CLI Proxy API 已启动
+- 后端暴露 `/management.html` 与 `/v0/management/*`
+- 建议后端版本：`>= 6.8.15`
 
-The address is auto-detected from the current page URL; manual override is supported.
+### 2.2 前端开发要求
 
-### Option B: Run the dev server
+- Node.js `>= 20`
+- npm `>= 10`
+
+---
+
+## 3. 本地开发
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
-Open `http://localhost:5173`, then connect to your CLI Proxy API backend instance.
+默认开发地址：
 
-### Option C: Build a single HTML file
+```text
+http://localhost:5173
+```
+
+打开后连接你的 CLI Proxy API 管理端地址即可。
+
+---
+
+## 4. 质量校验
 
 ```bash
-npm install
+npm test
+npm run type-check
 npm run build
 ```
 
-- Output: `dist/index.html` (all assets are inlined).
-- For CLI Proxy API bundling, the release workflow renames it to `management.html`.
-- To preview locally: `npm run preview`
+说明：
 
-Tip: opening `dist/index.html` via `file://` may be blocked by browser CORS; serving it (preview/static server) is more reliable.
+- `npm test`：Vitest 单元测试
+- `npm run type-check`：TypeScript 类型检查
+- `npm run build`：生成单文件构建产物
 
-## Connecting to the server
+---
 
-### API address
+## 5. 构建产物
 
-You can enter any of the following; the UI will normalize it:
-
-- `localhost:8317`
-- `http://192.168.1.10:8317`
-- `https://example.com:8317`
-- `http://example.com:8317/v0/management` (also accepted; the suffix is removed internally)
-
-### Management key (not the same as API keys)
-
-The management key is sent with every request as:
-
-- `Authorization: Bearer <MANAGEMENT_KEY>` (default)
-
-This is different from the proxy `api-keys` you manage inside the UI (those are for client requests to the proxy endpoints).
-
-### Remote management
-
-If you connect from a non-localhost browser, the server must allow remote management (e.g. `allow-remote-management: true`).  
-See `api.md` for the full authentication rules, server-side limits, and edge cases.
-
-## What you can manage (mapped to the UI pages)
-
-- **Dashboard**: connection status, server version/build date, quick counts, model availability snapshot.
-- **Basic Settings**: debug, proxy URL, request retry, quota fallback (switch project or preview models when limits reached), usage statistics, request logging, file logging, WebSocket auth.
-- **API Keys**: manage proxy `api-keys` (add/edit/delete).
-- **AI Providers**:
-  - Gemini/Codex/Claude/Vertex key entries (base URL, headers, proxy, model aliases, excluded models, prefix).
-  - OpenAI-compatible providers (multiple API keys, custom headers, model alias import via `/v1/models`, optional browser-side "chat/completions" test).
-  - Ampcode integration (upstream URL/key, force mappings, model mapping table).
-- **Auth Files**: upload/download/delete JSON credentials, filter/search/pagination, runtime-only indicators, view supported models per credential (when the server supports it), manage OAuth excluded models (supports `*` wildcards), configure OAuth model alias mappings.
-- **OAuth**: start OAuth/device flows for supported providers, poll status, optionally submit callback `redirect_url`; includes iFlow cookie import.
-- **Quota Management**: manage quota limits and usage for Claude, Antigravity, Codex, Gemini CLI, and other providers.
-- **Usage**: requests/tokens charts (hour/day), per-API & per-model breakdown, cached/reasoning token breakdown, RPM/TPM window, optional cost estimation with locally-saved model pricing.
-- **Config**: edit `/config.yaml` in-browser with YAML highlighting + search, then save/reload.
-- **Logs**: tail logs with incremental polling, auto-refresh, search, hide management traffic, clear logs; download request error log files.
-- **System**: quick links + fetch `/v1/models` (grouped view). Requires at least one proxy API key to query models.
-
-## Tech Stack
-
-- React 19 + TypeScript 5.9
-- Vite 7 (single-file build)
-- Zustand (state management)
-- Axios (HTTP client)
-- react-router-dom v7 (HashRouter)
-- Chart.js (data visualization)
-- CodeMirror 6 (YAML editor)
-- SCSS Modules (styling)
-- i18next (internationalization)
-
-## Internationalization
-
-Currently supports three languages:
-
-- English (en)
-- Simplified Chinese (zh-CN)
-- Russian (ru)
-
-The UI language is automatically detected from browser settings and can be manually switched at the bottom of the page.
-
-## Browser Compatibility
-
-- Build target: `ES2020`
-- Supports modern browsers (Chrome, Firefox, Safari, Edge)
-- Responsive layout for mobile and tablet access
-
-## Build & release notes
-
-- Vite produces a **single HTML** output (`dist/index.html`) with all assets inlined (via `vite-plugin-singlefile`).
-- Tagging `vX.Y.Z` triggers `.github/workflows/release.yml` to publish `dist/management.html`.
-- The UI version shown in the footer is injected at build time (env `VERSION`, git tag, or `package.json` fallback).
-
-## Security notes
-
-- The management key is stored in browser `localStorage` using a lightweight obfuscation format (`enc::v1::...`) to avoid plaintext storage; treat it as sensitive.
-- Use a dedicated browser profile/device for management. Be cautious when enabling remote management and evaluate its exposure surface.
-
-## Troubleshooting
-
-- **Can’t connect / 401**: confirm the API address and management key; remote access may require enabling remote management in the server config.
-- **Repeated auth failures**: the server may temporarily block remote IPs.
-- **Logs page missing**: enable “Logging to file” in Basic Settings; the navigation item is shown only when file logging is enabled.
-- **Some features show “unsupported”**: the backend may be too old or the endpoint is disabled/absent (common for model lists per auth file, excluded models, logs).
-- **OpenAI provider test fails**: the test runs in the browser and depends on network/CORS of the provider endpoint; a failure here does not always mean the server cannot reach it.
-
-## Development
+执行：
 
 ```bash
-npm run dev        # Vite dev server
-npm run build      # tsc + Vite build
-npm run preview    # serve dist locally
-npm run lint       # ESLint (fails on warnings)
-npm run format     # Prettier
-npm run type-check # tsc --noEmit
+npm run build
 ```
 
-## Contributing
+产物位置：
 
-Issues and PRs are welcome. Please include:
+```text
+dist/index.html
+```
 
-- Reproduction steps (server version + UI version)
-- Screenshots for UI changes
-- Verification notes (`npm run lint`, `npm run type-check`)
+该文件已内联 JS / CSS，可直接作为：
 
-## License
+```text
+management.html
+```
+
+部署到 CLI Proxy API 静态目录。
+
+---
+
+## 6. 部署方式
+
+### 6.1 直接替换静态文件
+
+将构建产物复制到后端静态目录：
+
+```powershell
+Copy-Item "dist/index.html" "<CLI_PROXY_API_ROOT>/static/management.html" -Force
+```
+
+如果你是 Windows 本地目录部署，通常只需要覆盖 `static/management.html`。
+
+### 6.2 Docker 部署
+
+如果后端运行在 Docker 中，推荐两种方式：
+
+1. 宿主机挂载静态目录  
+2. 重新复制 `management.html` 到容器映射目录后重启容器
+
+示例流程：
+
+```powershell
+npm run build
+Copy-Item "dist/index.html" "<docker-mapped-static-dir>/management.html" -Force
+docker restart <your-cli-proxy-api-container>
+```
+
+> 如果静态目录是宿主机 bind mount，通常覆盖文件后刷新浏览器即可；  
+> 若容器内有缓存或你希望稳妥生效，可执行重启。
+
+---
+
+## 7. 仓库结构
+
+```text
+src/
+├─ components/        # 通用组件与业务组件
+├─ features/          # 页面级功能模块
+├─ hooks/             # 通用 hooks
+├─ i18n/              # 多语言资源
+├─ pages/             # 路由页面
+├─ services/api/      # 前端 API 封装
+├─ stores/            # Zustand 状态管理
+├─ styles/            # 全局样式与变量
+└─ utils/             # 工具函数
+```
+
+关键页面：
+
+- `AuthFilesPage.tsx`：认证文件管理
+- `QuotaPage.tsx`：额度管理
+- `UsagePage.tsx`：使用统计
+- `ConfigPage.tsx`：配置管理
+- `LogsPage.tsx`：日志管理
+
+---
+
+## 8. 当前定制能力
+
+本分支重点维护以下能力：
+
+- 认证文件：
+  - 支持 `JSON` / `ZIP` 上传
+  - 上传结果展示导入 / 跳过 / 失败统计
+  - 列表状态持久化
+  - 单页数量上限扩展
+
+- 额度管理：
+  - 搜索配置文件
+  - 自定义单页数量
+  - 顶部手动刷新
+  - 自动刷新与刷新间隔
+  - 检测 401 后自动删除
+  - 周额度低于阈值自动删除
+
+- 使用统计：
+  - 保留自动刷新控制面板
+  - 时间范围筛选
+  - 导出 / 导入
+  - 图表与详情统计
+
+---
+
+## 9. 分支约定
+
+- `main`
+  - 用于跟踪上游主线
+- `feat/usage-stats-autorefresh-dashboard`
+  - 用于维护当前自定义增强功能
+
+当前建议：
+
+- 日常改动优先在维护分支进行
+- 合并上游更新后再回归验证
+- 提交信息优先使用 **中文**
+
+---
+
+## 10. 常见问题
+
+### 10.1 页面 401 / 无法连接
+
+优先检查：
+
+- 管理地址是否正确
+- 管理密钥是否正确
+- 后端是否允许远程管理
+
+### 10.2 构建成功但页面没变化
+
+优先检查：
+
+- 是否把 `dist/index.html` 复制为 `management.html`
+- 是否复制到了正确的静态目录
+- Docker 是否使用了旧的映射目录
+- 浏览器是否命中缓存
+
+### 10.3 认证文件上传失败
+
+优先检查：
+
+- 文件类型是否为 `json` 或 `zip`
+- 后端 Management API 是否支持对应上传逻辑
+- ZIP 内文件结构是否符合后端导入要求
+
+---
+
+## 11. 许可证
 
 MIT
