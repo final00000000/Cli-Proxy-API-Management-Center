@@ -50,6 +50,7 @@ import { useAuthFilesOauth } from '@/features/authFiles/hooks/useAuthFilesOauth'
 import { useAuthFilesPrefixProxyEditor } from '@/features/authFiles/hooks/useAuthFilesPrefixProxyEditor';
 import { useAuthFilesStats } from '@/features/authFiles/hooks/useAuthFilesStats';
 import { useAuthFilesStatusBarCache } from '@/features/authFiles/hooks/useAuthFilesStatusBarCache';
+import { isAuthFile401Detectable } from '@/features/authFiles/quotaDetection';
 import {
   isAuthFilesSortMode,
   readAuthFilesUiState,
@@ -101,6 +102,7 @@ export function AuthFilesPage() {
     loading,
     error,
     uploading,
+    detecting401,
     deleting,
     deletingAll,
     statusUpdating,
@@ -111,6 +113,7 @@ export function AuthFilesPage() {
     handleFileChange,
     handleDelete,
     handleDeleteAll,
+    run401Detection,
     handleDownload,
     handleStatusToggle,
     toggleSelect,
@@ -390,6 +393,10 @@ export function AuthFilesPage() {
     [sorted]
   );
   const selectedNames = useMemo(() => Array.from(selectedFiles), [selectedFiles]);
+  const detectable401Count = useMemo(
+    () => sorted.filter((file) => isAuthFile401Detectable(file)).length,
+    [sorted]
+  );
   const selectedHasStatusUpdating = useMemo(
     () => selectedNames.some((name) => statusUpdating[name] === true),
     [selectedNames, statusUpdating]
@@ -726,6 +733,34 @@ export function AuthFilesPage() {
                           </span>
                         }
                       />
+                    </div>
+                    <div className={styles.filterToggleCard}>
+                      <div className={styles.filterQuickAction}>
+                        <div className={styles.filterQuickActionContent}>
+                          <span className={styles.filterQuickActionTitle}>
+                            {t('auth_files.detect_401_title')}
+                          </span>
+                          <span className={styles.filterQuickActionHint}>
+                            {detectable401Count > 0
+                              ? t('auth_files.detect_401_hint', { count: detectable401Count })
+                              : t('auth_files.detect_401_hint_empty')}
+                          </span>
+                        </div>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => void run401Detection(sorted)}
+                          disabled={
+                            disableControls ||
+                            loading ||
+                            detecting401 ||
+                            detectable401Count === 0
+                          }
+                          loading={detecting401}
+                        >
+                          {t('auth_files.detect_401_button')}
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </div>

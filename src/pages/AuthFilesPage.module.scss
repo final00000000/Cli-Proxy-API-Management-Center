@@ -317,6 +317,56 @@
   background: color-mix(in srgb, var(--bg-secondary) 90%, transparent);
 }
 
+.filterQuickAction {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--bg-primary) 92%, transparent), transparent),
+    color-mix(in srgb, var(--primary-color) 4%, var(--bg-secondary));
+  border: 1px dashed color-mix(in srgb, var(--primary-color) 18%, var(--border-color));
+
+  @include mobile {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  :global(.button) {
+    flex-shrink: 0;
+  }
+
+  @include mobile {
+    :global(.button) {
+      width: 100%;
+      justify-content: center;
+    }
+  }
+}
+
+.filterQuickActionContent {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.filterQuickActionTitle {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.filterQuickActionHint {
+  color: var(--text-tertiary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .filterToggle {
   display: flex;
   align-items: center;
