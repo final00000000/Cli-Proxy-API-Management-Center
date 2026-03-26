@@ -32,14 +32,14 @@ function getVersion(): string {
     return process.env.VERSION.trim();
   }
 
-  // 2. Try git tag
+  // 2. Try git tag / describe output
   const exactTag = runGitCommand(['describe', '--tags', '--exact-match']);
   if (exactTag) {
     return exactTag;
   }
 
   const describeTag = runGitCommand(['describe', '--tags', '--always']);
-  if (describeTag && /[0-9a-f]{7,}/i.test(describeTag) === false) {
+  if (describeTag) {
     return describeTag;
   }
 
