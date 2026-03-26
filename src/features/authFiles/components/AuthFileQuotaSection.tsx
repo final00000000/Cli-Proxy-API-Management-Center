@@ -8,9 +8,14 @@ import {
   GEMINI_CLI_CONFIG,
   KIMI_CONFIG
 } from '@/components/quota';
+import { triggerHeaderRefresh } from '@/hooks/useHeaderRefresh';
 import { useNotificationStore, useQuotaStore } from '@/stores';
 import type { AuthFileItem } from '@/types';
-import { getStatusFromError } from '@/utils/quota';
+import {
+  autoDeleteAuthFiles,
+  getStatusFromError,
+  resolveQuotaAutoDeleteDecision
+} from '@/utils/quota';
 import {
   isRuntimeOnlyAuthFile,
   resolveQuotaErrorMessage,
@@ -78,6 +83,37 @@ export function AuthFileQuotaSection(props: AuthFileQuotaSectionProps) {
 
     try {
       const data = await config.fetchQuota(file, t);
+      const autoDeleteDecision = resolveQuotaAutoDeleteDecision(quotaType, {
+        status: 'success',
+        data
+      });
+
+      if (autoDeleteDecision) {
+        const { deletedNames } = await autoDeleteAuthFiles(
+          [{ name: file.name, decision: autoDeleteDecision }],
+          t,
+          showNotification
+        );
+
+        if (deletedNames.includes(file.name)) {
+          updateQuotaState((prev: Record<string, unknown>) => {
+            const next = { ...prev };
+            delete next[file.name];
+            return next;
+          });
+          try {
+            await triggerHeaderRefresh();
+          } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : '';
+            showNotification(
+              `${t('notification.refresh_failed')}${message ? `: ${message}` : ''}`,
+              'error'
+            );
+          }
+          return;
+        }
+      }
+
       updateQuotaState((prev: Record<string, unknown>) => ({
         ...prev,
         [file.name]: config.buildSuccessState(data)
@@ -86,6 +122,39 @@ export function AuthFileQuotaSection(props: AuthFileQuotaSectionProps) {
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : t('common.unknown_error');
       const status = getStatusFromError(err);
+
+      const autoDeleteDecision = resolveQuotaAutoDeleteDecision(quotaType, {
+        status: 'error',
+        errorStatus: status
+      });
+
+      if (autoDeleteDecision) {
+        const { deletedNames } = await autoDeleteAuthFiles(
+          [{ name: file.name, decision: autoDeleteDecision }],
+          t,
+          showNotification
+        );
+
+        if (deletedNames.includes(file.name)) {
+          updateQuotaState((prev: Record<string, unknown>) => {
+            const next = { ...prev };
+            delete next[file.name];
+            return next;
+          });
+          try {
+            await triggerHeaderRefresh();
+          } catch (refreshError: unknown) {
+            const refreshMessage =
+              refreshError instanceof Error ? refreshError.message : '';
+            showNotification(
+              `${t('notification.refresh_failed')}${refreshMessage ? `: ${refreshMessage}` : ''}`,
+              'error'
+            );
+          }
+          return;
+        }
+      }
+
       updateQuotaState((prev: Record<string, unknown>) => ({
         ...prev,
         [file.name]: config.buildErrorState(message, status)
