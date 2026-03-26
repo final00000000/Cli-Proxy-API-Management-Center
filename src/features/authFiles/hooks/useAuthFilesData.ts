@@ -132,9 +132,17 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
       const validFiles: File[] = [];
       const invalidFiles: string[] = [];
       const oversizedFiles: string[] = [];
+      const normalizeCount = (value: unknown, fallback = 0) => {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : fallback;
+      };
 
       filesToUpload.forEach((file) => {
-        if (!file.name.endsWith('.json')) {
+        const lowerName = file.name.toLowerCase();
+        const isJsonFile = lowerName.endsWith('.json');
+        const isZipFile = lowerName.endsWith('.zip');
+
+        if (!isJsonFile && !isZipFile) {
           invalidFiles.push(file.name);
           return;
         }
@@ -162,12 +170,19 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
 
       setUploading(true);
       let successCount = 0;
+      let importedCount = 0;
+      let skippedCount = 0;
+      let responseFailedCount = 0;
       const failed: { name: string; message: string }[] = [];
 
       for (const file of validFiles) {
         try {
-          await authFilesApi.upload(file);
+          const result = await authFilesApi.upload(file);
           successCount++;
+          const isZipFile = file.name.toLowerCase().endsWith('.zip');
+          importedCount += normalizeCount(result?.imported, isZipFile ? 0 : 1);
+          skippedCount += normalizeCount(result?.skipped, 0);
+          responseFailedCount += Array.isArray(result?.failed) ? result.failed.length : 0;
         } catch (err: unknown) {
           const errorMessage = err instanceof Error ? err.message : 'Unknown error';
           failed.push({ name: file.name, message: errorMessage });
@@ -175,10 +190,13 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
       }
 
       if (successCount > 0) {
-        const suffix = validFiles.length > 1 ? ` (${successCount}/${validFiles.length})` : '';
         showNotification(
-          `${t('auth_files.upload_success')}${suffix}`,
-          failed.length ? 'warning' : 'success'
+          t('auth_files.upload_success', {
+            imported: importedCount,
+            skipped: skippedCount,
+            failed: responseFailedCount + failed.length
+          }),
+          responseFailedCount + failed.length > 0 ? 'warning' : 'success'
         );
         await loadFiles();
         await refreshKeyStats();

@@ -8,6 +8,11 @@ import type { OAuthModelAliasEntry } from '@/types';
 
 type StatusError = { status?: number };
 type AuthFileStatusResponse = { status: string; disabled: boolean };
+export type AuthFilesUploadResponse = {
+  imported?: number;
+  skipped?: number;
+  failed?: unknown[];
+};
 
 export const AUTH_FILE_INVALID_JSON_OBJECT_ERROR = 'AUTH_FILE_INVALID_JSON_OBJECT';
 
@@ -138,7 +143,7 @@ export const authFilesApi = {
   upload: (file: File) => {
     const formData = new FormData();
     formData.append('file', file, file.name);
-    return apiClient.postForm('/auth-files', formData);
+    return apiClient.postForm<AuthFilesUploadResponse>('/auth-files', formData);
   },
 
   deleteFile: (name: string) => apiClient.delete(`/auth-files?name=${encodeURIComponent(name)}`),
