@@ -27,6 +27,24 @@ interface ProviderStats {
   openai: number | null;
 }
 
+const normalizeMetaValue = (value?: string | null): string | null => {
+  const text = String(value ?? '').trim();
+  if (!text) return null;
+  if (['unknown', 'none', 'null', 'undefined', 'n/a', 'na'].includes(text.toLowerCase())) {
+    return null;
+  }
+  return text;
+};
+
+const formatServerBuildDate = (value: string | null | undefined, locale: string): string | null => {
+  const normalized = normalizeMetaValue(value);
+  if (!normalized) return null;
+
+  const date = new Date(normalized);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleDateString(locale);
+};
+
 export function DashboardPage() {
   const { t, i18n } = useTranslation();
   const connectionStatus = useAuthStore((state) => state.connectionStatus);
@@ -55,6 +73,8 @@ export function DashboardPage() {
   });
 
   const [loading, setLoading] = useState(true);
+  const serverVersionLabel = normalizeMetaValue(serverVersion);
+  const serverBuildDateLabel = formatServerBuildDate(serverBuildDate, i18n.language);
 
   const apiKeysCache = useRef<string[]>([]);
 
@@ -267,14 +287,14 @@ export function DashboardPage() {
         </div>
         <div className={styles.connectionInfo}>
           <span className={styles.serverUrl}>{apiBase || '-'}</span>
-          {serverVersion && (
+          {serverVersionLabel && (
             <span className={styles.serverVersion}>
-              v{serverVersion.trim().replace(/^[vV]+/, '')}
+              v{serverVersionLabel.replace(/^[vV]+/, '')}
             </span>
           )}
-          {serverBuildDate && (
+          {serverBuildDateLabel && (
             <span className={styles.buildDate}>
-              {new Date(serverBuildDate).toLocaleDateString(i18n.language)}
+              {serverBuildDateLabel}
             </span>
           )}
         </div>

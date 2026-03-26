@@ -68,6 +68,42 @@ const compareVersions = (latest?: string | null, current?: string | null) => {
   return 0;
 };
 
+const normalizeMetaValue = (value?: string | null): string | null => {
+  const text = String(value ?? '').trim();
+  if (!text) return null;
+
+  const lowered = text.toLowerCase();
+  if (['unknown', 'none', 'null', 'undefined', 'n/a', 'na'].includes(lowered)) {
+    return null;
+  }
+
+  return text;
+};
+
+const isDevelopmentVersion = (value?: string | null): boolean => {
+  const normalized = normalizeMetaValue(value);
+  if (!normalized) return false;
+
+  const lowered = normalized.toLowerCase();
+  return lowered === 'dev' || lowered === 'local' || lowered.startsWith('local@');
+};
+
+const formatBuildDate = (
+  value: string | null | undefined,
+  locale: string,
+  fallback: string
+): string => {
+  const normalized = normalizeMetaValue(value);
+  if (!normalized) return fallback;
+
+  const date = new Date(normalized);
+  if (Number.isNaN(date.getTime())) {
+    return normalized;
+  }
+
+  return date.toLocaleString(locale);
+};
+
 export function SystemPage() {
   const { t, i18n } = useTranslation();
   const { showNotification, showConfirmation } = useNotificationStore();
@@ -106,11 +142,40 @@ export function SystemPage() {
   const requestLogDirty = requestLogDraft !== requestLogEnabled;
   const canEditRequestLog = auth.connectionStatus === 'connected' && Boolean(config);
 
-  const appVersion = __APP_VERSION__ || t('system_info.version_unknown');
-  const apiVersion = auth.serverVersion || t('system_info.version_unknown');
-  const buildTime = auth.serverBuildDate
-    ? new Date(auth.serverBuildDate).toLocaleString(i18n.language)
-    : t('system_info.version_unknown');
+  const appVersion = normalizeMetaValue(__APP_VERSION__) ?? t('system_info.version_unknown');
+  const appGitRef = normalizeMetaValue(__APP_GIT_REF__);
+  const appBuildTime = formatBuildDate(
+    __APP_BUILD_TIME__,
+    i18n.language,
+    t('system_info.version_unknown')
+  );
+  const apiVersionRaw = normalizeMetaValue(auth.serverVersion);
+  const apiCommit = normalizeMetaValue(auth.serverCommit);
+  const apiVersion = apiVersionRaw ?? t('system_info.version_unknown');
+  const buildTime = formatBuildDate(
+    auth.serverBuildDate,
+    i18n.language,
+    t('system_info.version_unknown')
+  );
+  const appVersionHint =
+    appGitRef && appGitRef !== appVersion
+      ? appGitRef
+      : isDevelopmentVersion(appVersion)
+        ? t('system_info.management_version_local_hint', { buildTime: appBuildTime })
+        : null;
+  const apiVersionHint = isDevelopmentVersion(apiVersionRaw)
+    ? apiCommit
+      ? t('system_info.commit_hash', { commit: apiCommit })
+      : t('system_info.api_version_dev_hint')
+    : apiCommit
+      ? t('system_info.commit_hash', { commit: apiCommit })
+      : null;
+  const buildTimeHint =
+    !normalizeMetaValue(auth.serverBuildDate) && isDevelopmentVersion(apiVersionRaw)
+      ? t('system_info.server_build_missing')
+      : apiCommit
+        ? t('system_info.commit_hash', { commit: apiCommit })
+        : null;
 
   const getIconForCategory = (categoryId: string): string | null => {
     const iconEntry = MODEL_CATEGORY_ICONS[categoryId];
@@ -359,6 +424,7 @@ export function SystemPage() {
                 <div className={styles.tileLabel}>{t('footer.version')}</div>
               </div>
               <div className={styles.tileValue}>{appVersion}</div>
+              {appVersionHint && <div className={styles.tileSub}>{appVersionHint}</div>}
             </button>
 
             <div className={styles.infoTile}>
@@ -378,11 +444,13 @@ export function SystemPage() {
                 </Button>
               </div>
               <div className={styles.tileValue}>{apiVersion}</div>
+              {apiVersionHint && <div className={styles.tileSub}>{apiVersionHint}</div>}
             </div>
 
             <div className={styles.infoTile}>
               <div className={styles.tileLabel}>{t('footer.build_date')}</div>
               <div className={styles.tileValue}>{buildTime}</div>
+              {buildTimeHint && <div className={styles.tileSub}>{buildTimeHint}</div>}
             </div>
 
             <div className={styles.infoTile}>
